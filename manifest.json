@@ -2,7 +2,7 @@
   "name": "SVG Cleaner Test",
   "version": "0.0.1",
   "id": "svg-cleaner-test",
-  "host": "https://myrustycage.github.io/svg-cleanerest",
+  "host": "https://myrustycage.github.io/svg-cleaner",
   "code": "./svg-cleaner/plugin.js",
   "ui": "./svg-cleaner/ui.html",
   "entry": "main",
