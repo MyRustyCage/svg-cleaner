@@ -132,7 +132,7 @@
     <script>
       // Test cases with problematic CSS/HTML attributes
       const testCases = {
-        "tuina-hero": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/5 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true">
+        "tuina-hero": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/5 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true" width="800" height="600">
   <defs>
     <pattern id="hero" width="80" height="80" x="50%" y="-1" patternUnits="userSpaceOnUse">
       <path d="M.5 200V.5H200" fill="none"></path>
@@ -141,12 +141,12 @@
   <rect width="100%" height="100%" stroke-width="0" fill="url(#hero)"></rect>
 </svg>`,
 
-        "simple-mask": `<svg width="200" height="200" style="mask-image: linear-gradient(to bottom, black, transparent);">
-  <rect x="10" y="10" width="180" height="180" fill="blue"/>
+        "simple-mask": `<svg width="800" height="600" style="mask-image: linear-gradient(to bottom, black, transparent);">
+  <rect x="10" y="10" width="780" height="580" fill="blue"/>
 </svg>`,
 
-        "stroke-classes": `<svg class="w-full h-full stroke-red-500/50" style="stroke-width: 2px;">
-  <circle cx="100" cy="100" r="50" fill="none" class="stroke-current"/>
+        "stroke-classes": `<svg class="w-full h-full stroke-red-500/50" width="800" height="600" style="stroke-width: 2px;">
+  <circle cx="400" cy="300" r="150" fill="none" class="stroke-current"/>
 </svg>`,
       };
 
@@ -364,6 +364,10 @@
           }
         }
 
+        // Ensure SVG has width/height for PNG conversion
+        if (!svg.getAttribute("width")) svg.setAttribute("width", "800");
+        if (!svg.getAttribute("height")) svg.setAttribute("height", "600");
+
         // Remove CSS classes and non-SVG attributes
         svg.removeAttribute("class");
         svg.removeAttribute("style");
@@ -403,6 +407,63 @@
         return result;
       }
 
+      // Convert SVG to PNG
+      async function convertSVGtoPNG(svgString) {
+        console.log("[Converter] Converting SVG to PNG...");
+
+        return new Promise((resolve, reject) => {
+          // Parse SVG to get dimensions
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(svgString, "image/svg+xml");
+          const svg = doc.documentElement;
+
+          const width = parseInt(svg.getAttribute("width") || "800");
+          const height = parseInt(svg.getAttribute("height") || "600");
+
+          console.log("[Converter] Target dimensions:", width, "x", height);
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+
+          // White background
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+
+          const img = new Image();
+          const blob = new Blob([svgString], {
+            type: "image/svg+xml;charset=utf-8",
+          });
+          const url = URL.createObjectURL(blob);
+
+          img.onload = () => {
+            console.log("[Converter] Image loaded, drawing to canvas...");
+            ctx.drawImage(img, 0, 0, width, height);
+            URL.revokeObjectURL(url);
+
+            canvas.toBlob(async (pngBlob) => {
+              console.log("[Converter] PNG blob created, size:", pngBlob.size);
+              const arrayBuffer = await pngBlob.arrayBuffer();
+              const uint8Array = new Uint8Array(arrayBuffer);
+              resolve({
+                imageData: Array.from(uint8Array),
+                width: width,
+                height: height,
+              });
+            }, "image/png");
+          };
+
+          img.onerror = (err) => {
+            console.error("[Converter] Image load failed:", err);
+            URL.revokeObjectURL(url);
+            reject(new Error("Failed to load SVG for conversion"));
+          };
+
+          img.src = url;
+        });
+      }
+
       // Event listeners
       testCaseSelect.addEventListener("change", loadTestCase);
 
@@ -422,7 +483,7 @@
         }
       });
 
-      importBtn.addEventListener("click", () => {
+      importBtn.addEventListener("click", async () => {
         if (!currentCleaned) {
           setStatus(
             '❌ No cleaned SVG to import. Click "Clean SVG" first.',
@@ -431,17 +492,27 @@
           return;
         }
 
-        setStatus("📤 Importing to Penpot...", "info");
+        try {
+          setStatus("🎨 Converting SVG to PNG...", "info");
+          const pngData = await convertSVGtoPNG(currentCleaned);
 
-        parent.postMessage(
-          {
-            pluginMessage: {
-              type: "import-svg",
-              svgString: currentCleaned,
+          setStatus("📤 Importing to Penpot...", "info");
+
+          parent.postMessage(
+            {
+              pluginMessage: {
+                type: "import-png",
+                imageData: pngData.imageData,
+                width: pngData.width,
+                height: pngData.height,
+              },
             },
-          },
-          "*"
-        );
+            "*"
+          );
+        } catch (err) {
+          console.error("[UI] Convert/import error:", err);
+          setStatus(`❌ Failed: ${err.message}`, "err");
+        }
       });
 
       // Listen for plugin responses
