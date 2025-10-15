@@ -104,6 +104,7 @@
       <label for="testCase">Test Case:</label>
       <select id="testCase">
         <option value="tuina-hero">Tuina Hero Pattern (mask-image)</option>
+        <option value="tuina-hero">Tuina Hero Pattern 50% (mask-image)</option>
         <option value="simple-pattern">Simple Pattern Test (red grid)</option>
         <option value="simple-mask">Simple Linear Mask</option>
         <option value="stroke-classes">Stroke with Tailwind Classes</option>
@@ -159,6 +160,25 @@
 
         "stroke-classes": `<svg class="w-full h-full stroke-red-500/50" width="800" height="600" style="stroke-width: 2px;">
   <circle cx="400" cy="300" r="150" fill="none" class="stroke-current"/>
+</svg>`,
+        "tuina-hero-visible": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/50 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true" width="800" height="600">
+  <defs>
+    <pattern id="hero" width="80" height="80" x="50%" y="-1" patternUnits="userSpaceOnUse">
+      <path d="M.5 200V.5H200" fill="none"></path>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="#1a1a1a"/>
+  <rect width="100%" height="100%" stroke-width="0" fill="url(#hero)"></rect>
+</svg>`,
+
+        "tuina-hero-original": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/5 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true" width="800" height="600">
+  <defs>
+    <pattern id="hero" width="80" height="80" x="50%" y="-1" patternUnits="userSpaceOnUse">
+      <path d="M.5 200V.5H200" fill="none"></path>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" fill="#1a1a1a"/>
+  <rect width="100%" height="100%" stroke-width="0" fill="url(#hero)"></rect>
 </svg>`,
       };
 
