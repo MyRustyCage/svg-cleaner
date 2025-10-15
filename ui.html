@@ -426,21 +426,46 @@
             return;
           }
 
-          // Ensure proper namespace
-          if (!svg.getAttribute("xmlns")) {
-            svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-            console.log("[Converter] Added xmlns namespace");
-          }
-
+          // Get dimensions first
           const width = parseInt(svg.getAttribute("width") || "800");
           const height = parseInt(svg.getAttribute("height") || "600");
 
           console.log("[Converter] Target dimensions:", width, "x", height);
 
+          // Force xmlns namespace on root SVG element
+          svg.setAttributeNS(
+            "http://www.w3.org/2000/xmlns/",
+            "xmlns",
+            "http://www.w3.org/2000/svg"
+          );
+          svg.setAttributeNS(
+            "http://www.w3.org/2000/xmlns/",
+            "xmlns:xlink",
+            "http://www.w3.org/1999/xlink"
+          );
+
+          console.log("[Converter] Added xmlns namespace");
+
           // Re-serialize with namespace
           const serializer = new XMLSerializer();
           const fixedSVG = serializer.serializeToString(svg);
           console.log("[Converter] Fixed SVG:", fixedSVG.substring(0, 300));
+
+          // Verify xmlns is present
+          if (!fixedSVG.includes('xmlns="http://www.w3.org/2000/svg"')) {
+            console.warn(
+              "[Converter] xmlns still missing, manually prepending"
+            );
+            // Manual fix as last resort
+            const fixedManually = fixedSVG.replace(
+              "<svg",
+              '<svg xmlns="http://www.w3.org/2000/svg"'
+            );
+            console.log(
+              "[Converter] Manually fixed:",
+              fixedManually.substring(0, 300)
+            );
+          }
 
           const canvas = document.createElement("canvas");
           canvas.width = width;
@@ -453,11 +478,24 @@
 
           const img = new Image();
 
-          // Create proper data URL instead of blob URL (more reliable)
-          const svgBase64 = btoa(unescape(encodeURIComponent(fixedSVG)));
+          // Create proper data URL
+          const svgToEncode = fixedSVG.includes(
+            'xmlns="http://www.w3.org/2000/svg"'
+          )
+            ? fixedSVG
+            : fixedSVG.replace(
+                "<svg",
+                '<svg xmlns="http://www.w3.org/2000/svg"'
+              );
+
+          const svgBase64 = btoa(unescape(encodeURIComponent(svgToEncode)));
           const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
 
-          console.log("[Converter] Created data URL, length:", dataUrl.length);
+          console.log("[Converter] Data URL length:", dataUrl.length);
+          console.log(
+            "[Converter] First 200 chars:",
+            dataUrl.substring(0, 200)
+          );
 
           img.onload = () => {
             console.log("[Converter] Image loaded successfully");
@@ -504,13 +542,20 @@
           img.onerror = (err) => {
             console.error("[Converter] Image load failed");
             console.error("[Converter] Error event:", err);
-            console.error(
-              "[Converter] Trying to load from:",
-              dataUrl.substring(0, 200)
-            );
+
+            // Decode and log the actual SVG being loaded
+            try {
+              const decoded = decodeURIComponent(
+                escape(atob(dataUrl.split(",")[1]))
+              );
+              console.error("[Converter] Decoded SVG:", decoded);
+            } catch (e) {
+              console.error("[Converter] Could not decode SVG");
+            }
+
             reject(
               new Error(
-                "Failed to load SVG image - possibly invalid SVG syntax"
+                "Failed to load SVG image - check console for decoded SVG"
               )
             );
           };
