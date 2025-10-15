@@ -364,56 +364,48 @@
                 }
               }
 
-                      // Ensure SVG has width/height for PNG conversion
-              if (!svg.getAttribute('width')) svg.setAttribute('width', '800');
-              if (!svg.getAttribute('height')) svg.setAttribute('height', '600');
-
-              // IMPORTANT: Add xmlns namespace before serializing
-              svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+              // Ensure SVG has width/height for PNG conversion
+              if (!svg.getAttribute("width")) svg.setAttribute("width", "800");
+              if (!svg.getAttribute("height")) svg.setAttribute("height", "600");
 
               // Remove CSS classes and non-SVG attributes
-              svg.removeAttribute('class');
-              svg.removeAttribute('style');
-              svg.removeAttribute('aria-hidden');
+              svg.removeAttribute("class");
+              svg.removeAttribute("style");
+              svg.removeAttribute("aria-hidden");
 
               // Process all children
-              svg.querySelectorAll('*').forEach(el => {
-                el.removeAttribute('class');
+              svg.querySelectorAll("*").forEach((el) => {
+                el.removeAttribute("class");
 
-                const elStyle = el.getAttribute('style');
+                const elStyle = el.getAttribute("style");
                 if (elStyle) {
                   // Parse style into attributes
-                  const styles = elStyle.split(';').reduce((acc, s) => {
-                    const [prop, val] = s.split(':').map(x => x.trim());
+                  const styles = elStyle.split(";").reduce((acc, s) => {
+                    const [prop, val] = s.split(":").map((x) => x.trim());
                     if (prop && val) acc[prop] = val;
                     return acc;
                   }, {});
 
-                  if (styles.stroke) el.setAttribute('stroke', styles.stroke);
-                  if (styles['stroke-width']) el.setAttribute('stroke-width', styles['stroke-width']);
-                  if (styles.fill) el.setAttribute('fill', styles.fill);
-                  if (styles.opacity) el.setAttribute('opacity', styles.opacity);
+                  if (styles.stroke) el.setAttribute("stroke", styles.stroke);
+                  if (styles["stroke-width"])
+                    el.setAttribute("stroke-width", styles["stroke-width"]);
+                  if (styles.fill) el.setAttribute("fill", styles.fill);
+                  if (styles.opacity) el.setAttribute("opacity", styles.opacity);
 
-                  el.removeAttribute('style');
+                  el.removeAttribute("style");
                 }
               });
 
               // Serialize back to string
               const serializer = new XMLSerializer();
-              let result = serializer.serializeToString(svg);
+              const result = serializer.serializeToString(svg);
 
-              // Ensure xmlns is present (XMLSerializer sometimes drops it)
-              if (!result.includes('xmlns="http://www.w3.org/2000/svg"')) {
-                result = result.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
-                console.log('[Cleaner] Added xmlns via string replacement');
-              }
-
-              console.log('[Cleaner] Conversion complete, output length:', result.length);
-              console.log('[Cleaner] Output preview:', result.substring(0, 200));
+              console.log(
+                "[Cleaner] Conversion complete, output length:",
+                result.length
+              );
               return result;
             }
-
-
             // Convert SVG to PNG
             async function convertSVGtoPNG(svgString) {
               console.log('[Converter] Converting SVG to PNG...');
