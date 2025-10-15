@@ -1,7 +1,7 @@
-// plugin.js - SVG Cleaner Test Plugin
+// plugin.js - SVG Cleaner Test Plugin (Fixed)
 console.log("[SVG Test] Loading...");
 
-penpot.ui.open("SVG Cleaner Test", "./svg-cleaner/ui.html", {
+penpot.ui.open("SVG Cleaner Test", "./svg-cleaner-test/ui.html", {
   width: 500,
   height: 700,
 });
@@ -16,14 +16,23 @@ function sendToUI(type, detail) {
   }
 }
 
+// Manual string to Uint8Array conversion
+function stringToUint8Array(str) {
+  const len = str.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = str.charCodeAt(i) & 0xff;
+  }
+  return bytes;
+}
+
 async function importSVG(svgString) {
   console.log("[SVG Test] Importing SVG, length:", svgString.length);
   console.log("[SVG Test] SVG content:", svgString.substring(0, 200) + "...");
 
   try {
-    // Convert SVG string to Uint8Array
-    const encoder = new TextEncoder();
-    const uint8 = encoder.encode(svgString);
+    // Convert SVG string to Uint8Array manually
+    const uint8 = stringToUint8Array(svgString);
     console.log("[SVG Test] Encoded to Uint8Array:", uint8.byteLength, "bytes");
 
     // Upload as SVG

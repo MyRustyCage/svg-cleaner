@@ -221,12 +221,17 @@
             r = "50%";
           let stops = [];
 
-          // Parse: "75% 50% at top center, white, transparent"
-          const firstPart = parts[0];
+          // Parse: "75%_50%_at_top_center,white,transparent" (Tailwind underscores)
+          const firstPart = parts[0].replace(/_/g, " "); // Convert underscores to spaces
+          console.log("[Cleaner] Parsed first part:", firstPart);
+
           if (firstPart.includes("at")) {
             const [size, pos] = firstPart.split("at").map((s) => s.trim());
-            const sizeVals = size.split(/\s+/);
-            r = sizeVals[0]; // Use horizontal size as radius
+            const sizeVals = size.split(/\s+/).filter((v) => v); // Remove empty strings
+            r = sizeVals[0] || "50%"; // Use first dimension as radius
+
+            console.log("[Cleaner] Size values:", sizeVals);
+            console.log("[Cleaner] Position:", pos);
 
             // Parse position keywords
             if (pos.includes("top")) cy = "0%";
@@ -234,7 +239,10 @@
             if (pos.includes("center") && pos.includes("top")) cy = "0%";
             if (pos.includes("left")) cx = "0%";
             if (pos.includes("right")) cx = "100%";
-            if (pos.split(/\s+/).includes("center")) cx = "50%";
+            if (pos.split(/\s+/).includes("center")) {
+              if (!pos.includes("top") && !pos.includes("bottom")) cy = "50%";
+              if (!pos.includes("left") && !pos.includes("right")) cx = "50%";
+            }
 
             console.log("[Cleaner] Gradient position:", { cx, cy, r });
           }
