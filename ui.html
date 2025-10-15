@@ -130,540 +130,471 @@
     </div>
 
     <script>
-            // Test cases with problematic CSS/HTML attributes
-            const testCases = {
-              "tuina-hero": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/5 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true" width="800" height="600">
-        <defs>
-          <pattern id="hero" width="80" height="80" x="50%" y="-1" patternUnits="userSpaceOnUse">
-            <path d="M.5 200V.5H200" fill="none"></path>
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" stroke-width="0" fill="url(#hero)"></rect>
-      </svg>`,
+      // Test cases with problematic CSS/HTML attributes
+      const testCases = {
+        "tuina-hero": `<svg class="absolute inset-0 -z-10 h-full w-full stroke-white/5 [mask-image:radial-gradient(75%_50%_at_top_center,white,transparent)]" aria-hidden="true" width="800" height="600">
+  <defs>
+    <pattern id="hero" width="80" height="80" x="50%" y="-1" patternUnits="userSpaceOnUse">
+      <path d="M.5 200V.5H200" fill="none"></path>
+    </pattern>
+  </defs>
+  <rect width="100%" height="100%" stroke-width="0" fill="url(#hero)"></rect>
+</svg>`,
 
-              "simple-mask": `<svg width="800" height="600" style="mask-image: linear-gradient(to bottom, black, transparent);">
-        <rect x="10" y="10" width="780" height="580" fill="blue"/>
-      </svg>`,
+        "simple-mask": `<svg width="800" height="600" style="mask-image: linear-gradient(to bottom, black, transparent);">
+  <rect x="10" y="10" width="780" height="580" fill="blue"/>
+</svg>`,
 
-              "stroke-classes": `<svg class="w-full h-full stroke-red-500/50" width="800" height="600" style="stroke-width: 2px;">
-        <circle cx="400" cy="300" r="150" fill="none" class="stroke-current"/>
-      </svg>`,
-            };
+        "stroke-classes": `<svg class="w-full h-full stroke-red-500/50" width="800" height="600" style="stroke-width: 2px;">
+  <circle cx="400" cy="300" r="150" fill="none" class="stroke-current"/>
+</svg>`,
+      };
 
-            const testCaseSelect = document.getElementById("testCase");
-            const originalTextarea = document.getElementById("originalSVG");
-            const cleanedTextarea = document.getElementById("cleanedSVG");
-            const cleanBtn = document.getElementById("cleanBtn");
-            const importBtn = document.getElementById("importBtn");
-            const statusEl = document.getElementById("status");
+      const testCaseSelect = document.getElementById("testCase");
+      const originalTextarea = document.getElementById("originalSVG");
+      const cleanedTextarea = document.getElementById("cleanedSVG");
+      const cleanBtn = document.getElementById("cleanBtn");
+      const importBtn = document.getElementById("importBtn");
+      const statusEl = document.getElementById("status");
 
-            let currentCleaned = null;
+      let currentCleaned = null;
 
-            function setStatus(msg, type = "info") {
-              statusEl.textContent = msg;
-              statusEl.className = type;
+      function setStatus(msg, type = "info") {
+        statusEl.textContent = msg;
+        statusEl.className = type;
+      }
+
+      // Load test case
+      function loadTestCase() {
+        const selected = testCaseSelect.value;
+        originalTextarea.value = testCases[selected];
+        cleanedTextarea.value = "";
+        currentCleaned = null;
+        importBtn.disabled = true;
+        setStatus(
+          'Click "Clean SVG" to convert CSS to native SVG attributes.',
+          "info"
+        );
+      }
+
+      // Clean SVG - convert CSS to native attributes
+      function cleanSVG(svgString) {
+        console.log("[Cleaner] Starting conversion...");
+        console.log("[Cleaner] Input length:", svgString.length);
+
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(svgString, "image/svg+xml");
+
+        // Check for parsing errors
+        const parseError = doc.querySelector("parsererror");
+        if (parseError) {
+          throw new Error("SVG parsing failed: " + parseError.textContent);
+        }
+
+        const svg = doc.documentElement;
+        console.log("[Cleaner] SVG parsed successfully");
+
+        // Extract mask-image from class attribute (Tailwind arbitrary values)
+        function extractMaskFromClass(classStr) {
+          if (!classStr) return null;
+          const match = classStr.match(/\[mask-image:([^\]]+)\]/);
+          return match ? match[1] : null;
+        }
+
+        // Convert CSS mask to SVG mask element
+        function convertMaskToSVG(maskCSS, svgElement) {
+          console.log("[Cleaner] Converting mask:", maskCSS);
+
+          // Parse radial-gradient
+          const radialMatch = maskCSS.match(/radial-gradient\(([^)]+)\)/);
+          if (!radialMatch) {
+            console.warn("[Cleaner] Not a radial gradient, skipping");
+            return null;
+          }
+
+          const params = radialMatch[1];
+          const parts = params.split(",").map((p) => p.trim());
+
+          // Default values
+          let cx = "50%",
+            cy = "50%",
+            r = "50%";
+          let stops = [];
+
+          // Parse: "75%_50%_at_top_center,white,transparent" (Tailwind underscores)
+          const firstPart = parts[0].replace(/_/g, " "); // Convert underscores to spaces
+          console.log("[Cleaner] Parsed first part:", firstPart);
+
+          if (firstPart.includes("at")) {
+            const [size, pos] = firstPart.split("at").map((s) => s.trim());
+            const sizeVals = size.split(/\s+/).filter((v) => v); // Remove empty strings
+            r = sizeVals[0] || "50%"; // Use first dimension as radius
+
+            console.log("[Cleaner] Size values:", sizeVals);
+            console.log("[Cleaner] Position:", pos);
+
+            // Parse position keywords
+            if (pos.includes("top")) cy = "0%";
+            if (pos.includes("bottom")) cy = "100%";
+            if (pos.includes("center") && pos.includes("top")) cy = "0%";
+            if (pos.includes("left")) cx = "0%";
+            if (pos.includes("right")) cx = "100%";
+            if (pos.split(/\s+/).includes("center")) {
+              if (!pos.includes("top") && !pos.includes("bottom")) cy = "50%";
+              if (!pos.includes("left") && !pos.includes("right")) cx = "50%";
             }
 
-            // Load test case
-            function loadTestCase() {
-              const selected = testCaseSelect.value;
-              originalTextarea.value = testCases[selected];
-              cleanedTextarea.value = "";
-              currentCleaned = null;
-              importBtn.disabled = true;
-              setStatus(
-                'Click "Clean SVG" to convert CSS to native SVG attributes.',
-                "info"
-              );
+            console.log("[Cleaner] Gradient position:", { cx, cy, r });
+          }
+
+          // Parse color stops
+          for (let i = 1; i < parts.length; i++) {
+            const color = parts[i];
+            if (color.includes("transparent")) {
+              stops.push({ offset: "100%", color: "white", opacity: "0" });
+            } else if (color.includes("white")) {
+              stops.push({ offset: "0%", color: "white", opacity: "1" });
             }
+          }
 
-            // Clean SVG - convert CSS to native attributes
-            function cleanSVG(svgString) {
-              console.log("[Cleaner] Starting conversion...");
-              console.log("[Cleaner] Input length:", svgString.length);
+          console.log("[Cleaner] Gradient stops:", stops);
 
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(svgString, "image/svg+xml");
+          // Create or get defs
+          let defs = svgElement.querySelector("defs");
+          if (!defs) {
+            defs = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "defs"
+            );
+            svgElement.insertBefore(defs, svgElement.firstChild);
+          }
 
-              // Check for parsing errors
-              const parseError = doc.querySelector("parsererror");
-              if (parseError) {
-                throw new Error("SVG parsing failed: " + parseError.textContent);
-              }
+          // Create gradient
+          const gradientId =
+            "maskGradient-" + Math.random().toString(36).substr(2, 9);
+          const gradient = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "radialGradient"
+          );
+          gradient.setAttribute("id", gradientId);
+          gradient.setAttribute("cx", cx);
+          gradient.setAttribute("cy", cy);
+          gradient.setAttribute("r", r);
 
-              const svg = doc.documentElement;
-              console.log("[Cleaner] SVG parsed successfully");
+          stops.forEach((stop) => {
+            const stopEl = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "stop"
+            );
+            stopEl.setAttribute("offset", stop.offset);
+            stopEl.setAttribute("stop-color", stop.color);
+            stopEl.setAttribute("stop-opacity", stop.opacity);
+            gradient.appendChild(stopEl);
+          });
 
-              // Extract mask-image from class attribute (Tailwind arbitrary values)
-              function extractMaskFromClass(classStr) {
-                if (!classStr) return null;
-                const match = classStr.match(/\[mask-image:([^\]]+)\]/);
-                return match ? match[1] : null;
-              }
+          // Create mask
+          const maskId =
+            "maskElement-" + Math.random().toString(36).substr(2, 9);
+          const mask = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "mask"
+          );
+          mask.setAttribute("id", maskId);
 
-              // Convert CSS mask to SVG mask element
-              function convertMaskToSVG(maskCSS, svgElement) {
-                console.log("[Cleaner] Converting mask:", maskCSS);
+          const maskRect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          maskRect.setAttribute("width", "100%");
+          maskRect.setAttribute("height", "100%");
+          maskRect.setAttribute("fill", `url(#${gradientId})`);
+          mask.appendChild(maskRect);
 
-                // Parse radial-gradient
-                const radialMatch = maskCSS.match(/radial-gradient\(([^)]+)\)/);
-                if (!radialMatch) {
-                  console.warn("[Cleaner] Not a radial gradient, skipping");
-                  return null;
+          defs.appendChild(gradient);
+          defs.appendChild(mask);
+
+          console.log("[Cleaner] Created mask:", maskId);
+          return maskId;
+        }
+
+        // Process SVG element
+        const classAttr = svg.getAttribute("class");
+        const styleAttr = svg.getAttribute("style");
+
+        // Handle mask-image from class
+        if (classAttr) {
+          const maskCSS = extractMaskFromClass(classAttr);
+          if (maskCSS) {
+            console.log("[Cleaner] Found mask in class:", maskCSS);
+            const maskId = convertMaskToSVG(maskCSS, svg);
+            if (maskId) {
+              // Apply mask to all direct children
+              Array.from(svg.children).forEach((child) => {
+                if (child.tagName !== "defs") {
+                  child.setAttribute("mask", `url(#${maskId})`);
+                  console.log("[Cleaner] Applied mask to:", child.tagName);
+                }
+              });
+            }
+          }
+
+          // Parse stroke from Tailwind class (stroke-white/5 = white with 5% opacity)
+          const strokeMatch = classAttr.match(/stroke-([a-z]+)\/(\d+)/);
+          if (strokeMatch) {
+            const color = strokeMatch[1];
+            const opacity = parseInt(strokeMatch[2]) / 100;
+            svg.setAttribute("stroke", color === "white" ? "#ffffff" : color);
+            svg.setAttribute("stroke-opacity", opacity.toString());
+            console.log("[Cleaner] Extracted stroke:", color, opacity);
+          }
+        }
+
+        // Handle mask-image from style
+        if (styleAttr && styleAttr.includes("mask-image")) {
+          const maskMatch = styleAttr.match(/mask-image:\s*([^;]+)/);
+          if (maskMatch) {
+            const maskId = convertMaskToSVG(maskMatch[1], svg);
+            if (maskId) {
+              Array.from(svg.children).forEach((child) => {
+                if (child.tagName !== "defs") {
+                  child.setAttribute("mask", `url(#${maskId})`);
+                }
+              });
+            }
+          }
+        }
+
+        // Ensure SVG has width/height for PNG conversion
+        if (!svg.getAttribute("width")) svg.setAttribute("width", "800");
+        if (!svg.getAttribute("height")) svg.setAttribute("height", "600");
+
+        // IMPORTANT: Add xmlns namespace before serializing
+        svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+        // Remove CSS classes and non-SVG attributes
+        svg.removeAttribute("class");
+        svg.removeAttribute("style");
+        svg.removeAttribute("aria-hidden");
+
+        // Process all children
+        svg.querySelectorAll("*").forEach((el) => {
+          el.removeAttribute("class");
+
+          const elStyle = el.getAttribute("style");
+          if (elStyle) {
+            // Parse style into attributes
+            const styles = elStyle.split(";").reduce((acc, s) => {
+              const [prop, val] = s.split(":").map((x) => x.trim());
+              if (prop && val) acc[prop] = val;
+              return acc;
+            }, {});
+
+            if (styles.stroke) el.setAttribute("stroke", styles.stroke);
+            if (styles["stroke-width"])
+              el.setAttribute("stroke-width", styles["stroke-width"]);
+            if (styles.fill) el.setAttribute("fill", styles.fill);
+            if (styles.opacity) el.setAttribute("opacity", styles.opacity);
+
+            el.removeAttribute("style");
+          }
+        });
+
+        // Serialize back to string
+        const serializer = new XMLSerializer();
+        let result = serializer.serializeToString(svg);
+
+        // Ensure xmlns is present on root svg element (XMLSerializer sometimes drops it)
+        if (
+          !result.match(/<svg[^>]*xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)
+        ) {
+          result = result.replace(
+            /<svg\s/,
+            '<svg xmlns="http://www.w3.org/2000/svg" '
+          );
+          console.log("[Cleaner] Added xmlns via string replacement");
+        }
+
+        console.log(
+          "[Cleaner] Conversion complete, output length:",
+          result.length
+        );
+        console.log("[Cleaner] Output preview:", result.substring(0, 200));
+        return result;
+      }
+
+      // Convert SVG to PNG
+      async function convertSVGtoPNG(svgString) {
+        console.log("[Converter] Converting SVG to PNG...");
+
+        return new Promise((resolve, reject) => {
+          // Parse to get dimensions
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(svgString, "image/svg+xml");
+          const svg = doc.documentElement;
+
+          const width = parseInt(svg.getAttribute("width") || "800");
+          const height = parseInt(svg.getAttribute("height") || "600");
+
+          console.log("[Converter] Target dimensions:", width, "x", height);
+
+          // Check if root <svg> tag has xmlns (not just any element)
+          const svgTagMatch = svgString.match(/<svg[^>]*>/);
+          const svgTag = svgTagMatch ? svgTagMatch[0] : "";
+
+          let fixedSVG = svgString;
+
+          // If root svg tag doesn't have xmlns, add it
+          if (!svgTag.includes('xmlns="http://www.w3.org/2000/svg"')) {
+            console.log("[Converter] Root <svg> missing xmlns, adding it");
+            fixedSVG = fixedSVG.replace(
+              /<svg\s/,
+              '<svg xmlns="http://www.w3.org/2000/svg" '
+            );
+          } else {
+            console.log("[Converter] Root <svg> already has xmlns");
+          }
+
+          console.log("[Converter] Fixed SVG tag:", fixedSVG.substring(0, 200));
+
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+
+          // White background
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+
+          const img = new Image();
+
+          // Create data URL
+          const svgBase64 = btoa(unescape(encodeURIComponent(fixedSVG)));
+          const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+
+          console.log("[Converter] Data URL created, length:", dataUrl.length);
+
+          img.onload = () => {
+            console.log("[Converter] ✅ Image loaded successfully!");
+
+            try {
+              ctx.drawImage(img, 0, 0, width, height);
+              console.log("[Converter] Drew image to canvas");
+
+              canvas.toBlob(async (pngBlob) => {
+                if (!pngBlob) {
+                  reject(new Error("Failed to create PNG blob"));
+                  return;
                 }
 
-                const params = radialMatch[1];
-                const parts = params.split(",").map((p) => p.trim());
-
-                // Default values
-                let cx = "50%",
-                  cy = "50%",
-                  r = "50%";
-                let stops = [];
-
-                // Parse: "75%_50%_at_top_center,white,transparent" (Tailwind underscores)
-                const firstPart = parts[0].replace(/_/g, " "); // Convert underscores to spaces
-                console.log("[Cleaner] Parsed first part:", firstPart);
-
-                if (firstPart.includes("at")) {
-                  const [size, pos] = firstPart.split("at").map((s) => s.trim());
-                  const sizeVals = size.split(/\s+/).filter((v) => v); // Remove empty strings
-                  r = sizeVals[0] || "50%"; // Use first dimension as radius
-
-                  console.log("[Cleaner] Size values:", sizeVals);
-                  console.log("[Cleaner] Position:", pos);
-
-                  // Parse position keywords
-                  if (pos.includes("top")) cy = "0%";
-                  if (pos.includes("bottom")) cy = "100%";
-                  if (pos.includes("center") && pos.includes("top")) cy = "0%";
-                  if (pos.includes("left")) cx = "0%";
-                  if (pos.includes("right")) cx = "100%";
-                  if (pos.split(/\s+/).includes("center")) {
-                    if (!pos.includes("top") && !pos.includes("bottom")) cy = "50%";
-                    if (!pos.includes("left") && !pos.includes("right")) cx = "50%";
-                  }
-
-                  console.log("[Cleaner] Gradient position:", { cx, cy, r });
-                }
-
-                // Parse color stops
-                for (let i = 1; i < parts.length; i++) {
-                  const color = parts[i];
-                  if (color.includes("transparent")) {
-                    stops.push({ offset: "100%", color: "white", opacity: "0" });
-                  } else if (color.includes("white")) {
-                    stops.push({ offset: "0%", color: "white", opacity: "1" });
-                  }
-                }
-
-                console.log("[Cleaner] Gradient stops:", stops);
-
-                // Create or get defs
-                let defs = svgElement.querySelector("defs");
-                if (!defs) {
-                  defs = document.createElementNS(
-                    "http://www.w3.org/2000/svg",
-                    "defs"
-                  );
-                  svgElement.insertBefore(defs, svgElement.firstChild);
-                }
-
-                // Create gradient
-                const gradientId =
-                  "maskGradient-" + Math.random().toString(36).substr(2, 9);
-                const gradient = document.createElementNS(
-                  "http://www.w3.org/2000/svg",
-                  "radialGradient"
+                console.log(
+                  "[Converter] PNG blob created, size:",
+                  pngBlob.size
                 );
-                gradient.setAttribute("id", gradientId);
-                gradient.setAttribute("cx", cx);
-                gradient.setAttribute("cy", cy);
-                gradient.setAttribute("r", r);
+                const arrayBuffer = await pngBlob.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
 
-                stops.forEach((stop) => {
-                  const stopEl = document.createElementNS(
-                    "http://www.w3.org/2000/svg",
-                    "stop"
-                  );
-                  stopEl.setAttribute("offset", stop.offset);
-                  stopEl.setAttribute("stop-color", stop.color);
-                  stopEl.setAttribute("stop-opacity", stop.opacity);
-                  gradient.appendChild(stopEl);
+                resolve({
+                  imageData: Array.from(uint8Array),
+                  width: width,
+                  height: height,
                 });
+              }, "image/png");
+            } catch (err) {
+              console.error("[Converter] Canvas error:", err);
+              reject(err);
+            }
+          };
 
-                // Create mask
-                const maskId =
-                  "maskElement-" + Math.random().toString(36).substr(2, 9);
-                const mask = document.createElementNS(
-                  "http://www.w3.org/2000/svg",
-                  "mask"
-                );
-                mask.setAttribute("id", maskId);
+          img.onerror = (err) => {
+            console.error("[Converter] ❌ Image load failed");
 
-                const maskRect = document.createElementNS(
-                  "http://www.w3.org/2000/svg",
-                  "rect"
-                );
-                maskRect.setAttribute("width", "100%");
-                maskRect.setAttribute("height", "100%");
-                maskRect.setAttribute("fill", `url(#${gradientId})`);
-                mask.appendChild(maskRect);
-
-                defs.appendChild(gradient);
-                defs.appendChild(mask);
-
-                console.log("[Cleaner] Created mask:", maskId);
-                return maskId;
-              }
-
-              // Process SVG element
-              const classAttr = svg.getAttribute("class");
-              const styleAttr = svg.getAttribute("style");
-
-              // Handle mask-image from class
-              if (classAttr) {
-                const maskCSS = extractMaskFromClass(classAttr);
-                if (maskCSS) {
-                  console.log("[Cleaner] Found mask in class:", maskCSS);
-                  const maskId = convertMaskToSVG(maskCSS, svg);
-                  if (maskId) {
-                    // Apply mask to all direct children
-                    Array.from(svg.children).forEach((child) => {
-                      if (child.tagName !== "defs") {
-                        child.setAttribute("mask", `url(#${maskId})`);
-                        console.log("[Cleaner] Applied mask to:", child.tagName);
-                      }
-                    });
-                  }
-                }
-
-                // Parse stroke from Tailwind class (stroke-white/5 = white with 5% opacity)
-                const strokeMatch = classAttr.match(/stroke-([a-z]+)\/(\d+)/);
-                if (strokeMatch) {
-                  const color = strokeMatch[1];
-                  const opacity = parseInt(strokeMatch[2]) / 100;
-                  svg.setAttribute("stroke", color === "white" ? "#ffffff" : color);
-                  svg.setAttribute("stroke-opacity", opacity.toString());
-                  console.log("[Cleaner] Extracted stroke:", color, opacity);
-                }
-              }
-
-              // Handle mask-image from style
-              if (styleAttr && styleAttr.includes("mask-image")) {
-                const maskMatch = styleAttr.match(/mask-image:\s*([^;]+)/);
-                if (maskMatch) {
-                  const maskId = convertMaskToSVG(maskMatch[1], svg);
-                  if (maskId) {
-                    Array.from(svg.children).forEach((child) => {
-                      if (child.tagName !== "defs") {
-                        child.setAttribute("mask", `url(#${maskId})`);
-                      }
-                    });
-                  }
-                }
-              }
-
-              // Ensure SVG has width/height for PNG conversion
-              if (!svg.getAttribute("width")) svg.setAttribute("width", "800");
-              if (!svg.getAttribute("height")) svg.setAttribute("height", "600");
-
-              // Remove CSS classes and non-SVG attributes
-              svg.removeAttribute("class");
-              svg.removeAttribute("style");
-              svg.removeAttribute("aria-hidden");
-
-              // Process all children
-              svg.querySelectorAll("*").forEach((el) => {
-                el.removeAttribute("class");
-
-                const elStyle = el.getAttribute("style");
-                if (elStyle) {
-                  // Parse style into attributes
-                  const styles = elStyle.split(";").reduce((acc, s) => {
-                    const [prop, val] = s.split(":").map((x) => x.trim());
-                    if (prop && val) acc[prop] = val;
-                    return acc;
-                  }, {});
-
-                  if (styles.stroke) el.setAttribute("stroke", styles.stroke);
-                  if (styles["stroke-width"])
-                    el.setAttribute("stroke-width", styles["stroke-width"]);
-                  if (styles.fill) el.setAttribute("fill", styles.fill);
-                  if (styles.opacity) el.setAttribute("opacity", styles.opacity);
-
-                  el.removeAttribute("style");
-                }
-              });
-
-              // Serialize back to string
-              const serializer = new XMLSerializer();
-              const result = serializer.serializeToString(svg);
-
-              console.log(
-                "[Cleaner] Conversion complete, output length:",
-                result.length
+            // Decode and show what failed
+            try {
+              const decoded = decodeURIComponent(
+                escape(atob(dataUrl.split(",")[1]))
               );
-              return result;
-            }
-            // Convert SVG to PNG
-            async function convertSVGtoPNG(svgString) {
-              console.log('[Converter] Converting SVG to PNG...');
-
-              return new Promise((resolve, reject) => {
-                // Parse to get dimensions
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(svgString, 'image/svg+xml');
-                const svg = doc.documentElement;
-
-                const width = parseInt(svg.getAttribute('width') || '800');
-                const height = parseInt(svg.getAttribute('height') || '600');
-
-                console.log('[Converter] Target dimensions:', width, 'x', height);
-
-                // Check if root <svg> tag has xmlns (not just any element)
-                const svgTagMatch = svgString.match(/<svg[^>]*>/);
-                const svgTag = svgTagMatch ? svgTagMatch[0] : '';
-
-                let fixedSVG = svgString;
-
-                // If root svg tag doesn't have xmlns, add it
-                if (!svgTag.includes('xmlns="http://www.w3.org/2000/svg"')) {
-                  console.log('[Converter] Root <svg> missing xmlns, adding it');
-                  fixedSVG = fixedSVG.replace(/<svg\s/, '<svg xmlns="http://www.w3.org/2000/svg" ');
-                } else {
-                  console.log('[Converter] Root <svg> already has xmlns');
-                }
-
-                console.log('[Converter] Fixed SVG tag:', fixedSVG.substring(0, 200));
-
-                const canvas = document.createElement('canvas');
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-
-                // White background
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, width, height);
-
-                const img = new Image();
-
-                // Create data URL
-                const svgBase64 = btoa(unescape(encodeURIComponent(fixedSVG)));
-                const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
-
-                console.log('[Converter] Data URL created, length:', dataUrl.length);
-
-                img.onload = () => {
-                  console.log('[Converter] ✅ Image loaded successfully!');
-
-                  try {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    console.log('[Converter] Drew image to canvas');
-
-                    canvas.toBlob(async (pngBlob) => {
-                      if (!pngBlob) {
-                        reject(new Error('Failed to create PNG blob'));
-                        return;
-                      }
-
-                      console.log('[Converter] PNG blob created, size:', pngBlob.size);
-                      const arrayBuffer = await pngBlob.arrayBuffer();
-                      const uint8Array = new Uint8Array(arrayBuffer);
-
-                      resolve({
-                        imageData: Array.from(uint8Array),
-                        width: width,
-                        height: height
-                      });
-                    }, 'image/png');
-                  } catch (err) {
-                    console.error('[Converter] Canvas error:', err);
-                    reject(err);
-                  }
-                };
-
-                img.onerror = (err) => {
-                  console.error('[Converter] ❌ Image load failed');
-
-                  // Decode and show what failed
-                  try {
-                    const decoded = decodeURIComponent(escape(atob(dataUrl.split(',')[1])));
-                    console.error('[Converter] Failed SVG (first 500 chars):', decoded.substring(0, 500));
-                  } catch (e) {
-                    console.error('[Converter] Could not decode');
-                  }
-
-                  reject(new Error('Failed to load SVG - check decoded SVG in console'));
-                };
-
-                img.src = dataUrl;
-              });
+              console.error(
+                "[Converter] Failed SVG (first 500 chars):",
+                decoded.substring(0, 500)
+              );
+            } catch (e) {
+              console.error("[Converter] Could not decode");
             }
 
-              console.log("[Converter] Converting SVG to PNG...");
+            reject(
+              new Error("Failed to load SVG - check decoded SVG in console")
+            );
+          };
 
-              return new Promise((resolve, reject) => {
-                // Parse to get dimensions
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(svgString, "image/svg+xml");
-                const svg = doc.documentElement;
+          img.src = dataUrl;
+        });
+      }
 
-                const width = parseInt(svg.getAttribute("width") || "800");
-                const height = parseInt(svg.getAttribute("height") || "600");
+      // Event listeners
+      testCaseSelect.addEventListener("change", loadTestCase);
 
-                console.log("[Converter] Target dimensions:", width, "x", height);
+      cleanBtn.addEventListener("click", () => {
+        try {
+          setStatus("🔄 Converting CSS to native SVG...", "info");
+          const cleaned = cleanSVG(originalTextarea.value);
+          cleanedTextarea.value = cleaned;
+          currentCleaned = cleaned;
+          importBtn.disabled = false;
+          setStatus("✅ SVG cleaned successfully! Ready to import.", "ok");
+        } catch (err) {
+          console.error("[UI] Clean error:", err);
+          setStatus(`❌ Clean failed: ${err.message}`, "err");
+          currentCleaned = null;
+          importBtn.disabled = true;
+        }
+      });
 
-                // Manual xmlns fix - most reliable method
-                let fixedSVG = svgString;
+      importBtn.addEventListener("click", async () => {
+        if (!currentCleaned) {
+          setStatus(
+            '❌ No cleaned SVG to import. Click "Clean SVG" first.',
+            "err"
+          );
+          return;
+        }
 
-                // If xmlns is missing from the opening tag, add it
-                if (!fixedSVG.includes('xmlns="http://www.w3.org/2000/svg"')) {
-                  fixedSVG = fixedSVG.replace(
-                    "<svg",
-                    '<svg xmlns="http://www.w3.org/2000/svg"'
-                  );
-                  console.log("[Converter] Added xmlns manually");
-                }
+        try {
+          setStatus("🎨 Converting SVG to PNG...", "info");
+          const pngData = await convertSVGtoPNG(currentCleaned);
 
-                console.log("[Converter] Final SVG:", fixedSVG.substring(0, 300));
+          setStatus("📤 Importing to Penpot...", "info");
 
-                const canvas = document.createElement("canvas");
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext("2d");
+          parent.postMessage(
+            {
+              pluginMessage: {
+                type: "import-png",
+                imageData: pngData.imageData,
+                width: pngData.width,
+                height: pngData.height,
+              },
+            },
+            "*"
+          );
+        } catch (err) {
+          console.error("[UI] Convert/import error:", err);
+          setStatus(`❌ Failed: ${err.message}`, "err");
+        }
+      });
 
-                // White background
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(0, 0, width, height);
+      // Listen for plugin responses
+      window.addEventListener("message", (event) => {
+        const msg = event.data && event.data.pluginMessage;
+        if (!msg) return;
 
-                const img = new Image();
+        if (msg.type === "import-success") {
+          setStatus("✅ " + msg.detail, "ok");
+        } else if (msg.type === "import-error") {
+          setStatus("❌ " + msg.detail, "err");
+        }
+      });
 
-                // Create data URL
-                const svgBase64 = btoa(unescape(encodeURIComponent(fixedSVG)));
-                const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
-
-                console.log("[Converter] Data URL created");
-
-                img.onload = () => {
-                  console.log("[Converter] ✅ Image loaded successfully!");
-
-                  try {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    console.log("[Converter] Drew image to canvas");
-
-                    canvas.toBlob(async (pngBlob) => {
-                      if (!pngBlob) {
-                        reject(new Error("Failed to create PNG blob"));
-                        return;
-                      }
-
-                      console.log(
-                        "[Converter] PNG blob created, size:",
-                        pngBlob.size
-                      );
-                      const arrayBuffer = await pngBlob.arrayBuffer();
-                      const uint8Array = new Uint8Array(arrayBuffer);
-
-                      resolve({
-                        imageData: Array.from(uint8Array),
-                        width: width,
-                        height: height,
-                      });
-                    }, "image/png");
-                  } catch (err) {
-                    console.error("[Converter] Canvas error:", err);
-                    reject(err);
-                  }
-                };
-
-                img.onerror = (err) => {
-                  console.error("[Converter] ❌ Image load failed");
-
-                  // Decode and show what failed
-                  try {
-                    const decoded = decodeURIComponent(
-                      escape(atob(dataUrl.split(",")[1]))
-                    );
-                    console.error("[Converter] Failed SVG:", decoded);
-                  } catch (e) {
-                    console.error("[Converter] Could not decode");
-                  }
-
-                  reject(
-                    new Error("Failed to load SVG - check decoded SVG in console")
-                  );
-                };
-
-                img.src = dataUrl;
-              });
-            }
-
-            // Event listeners
-            testCaseSelect.addEventListener("change", loadTestCase);
-
-            cleanBtn.addEventListener("click", () => {
-              try {
-                setStatus("🔄 Converting CSS to native SVG...", "info");
-                const cleaned = cleanSVG(originalTextarea.value);
-                cleanedTextarea.value = cleaned;
-                currentCleaned = cleaned;
-                importBtn.disabled = false;
-                setStatus("✅ SVG cleaned successfully! Ready to import.", "ok");
-              } catch (err) {
-                console.error("[UI] Clean error:", err);
-                setStatus(`❌ Clean failed: ${err.message}`, "err");
-                currentCleaned = null;
-                importBtn.disabled = true;
-              }
-            });
-
-            importBtn.addEventListener("click", async () => {
-              if (!currentCleaned) {
-                setStatus(
-                  '❌ No cleaned SVG to import. Click "Clean SVG" first.',
-                  "err"
-                );
-                return;
-              }
-
-              try {
-                setStatus("🎨 Converting SVG to PNG...", "info");
-                const pngData = await convertSVGtoPNG(currentCleaned);
-
-                setStatus("📤 Importing to Penpot...", "info");
-
-                parent.postMessage(
-                  {
-                    pluginMessage: {
-                      type: "import-png",
-                      imageData: pngData.imageData,
-                      width: pngData.width,
-                      height: pngData.height,
-                    },
-                  },
-                  "*"
-                );
-              } catch (err) {
-                console.error("[UI] Convert/import error:", err);
-                setStatus(`❌ Failed: ${err.message}`, "err");
-              }
-            });
-
-            // Listen for plugin responses
-            window.addEventListener("message", (event) => {
-              const msg = event.data && event.data.pluginMessage;
-              if (!msg) return;
-
-              if (msg.type === "import-success") {
-                setStatus("✅ " + msg.detail, "ok");
-              } else if (msg.type === "import-error") {
-                setStatus("❌ " + msg.detail, "err");
-              }
-            });
-
-            // Initialize
-            loadTestCase();
+      // Initialize
+      loadTestCase();
     </script>
   </body>
 </html>
