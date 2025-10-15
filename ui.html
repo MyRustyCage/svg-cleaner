@@ -321,6 +321,10 @@
         const classAttr = svg.getAttribute("class");
         const styleAttr = svg.getAttribute("style");
 
+        // Store root-level stroke properties for patterns
+        let rootStroke = null;
+        let rootStrokeOpacity = null;
+
         // Handle mask-image from class
         if (classAttr) {
           const maskCSS = extractMaskFromClass(classAttr);
@@ -343,8 +347,10 @@
           if (strokeMatch) {
             const color = strokeMatch[1];
             const opacity = parseInt(strokeMatch[2]) / 100;
-            svg.setAttribute("stroke", color === "white" ? "#ffffff" : color);
-            svg.setAttribute("stroke-opacity", opacity.toString());
+            rootStroke = color === "white" ? "#ffffff" : color;
+            rootStrokeOpacity = opacity.toString();
+            svg.setAttribute("stroke", rootStroke);
+            svg.setAttribute("stroke-opacity", rootStrokeOpacity);
             console.log("[Cleaner] Extracted stroke:", color, opacity);
           }
         }
@@ -379,6 +385,22 @@
         // Process all children
         svg.querySelectorAll("*").forEach((el) => {
           el.removeAttribute("class");
+
+          // Apply root stroke to pattern paths that have fill="none"
+          if (
+            el.tagName === "path" &&
+            el.getAttribute("fill") === "none" &&
+            rootStroke
+          ) {
+            el.setAttribute("stroke", rootStroke);
+            if (rootStrokeOpacity) {
+              el.setAttribute("stroke-opacity", rootStrokeOpacity);
+            }
+            if (!el.getAttribute("stroke-width")) {
+              el.setAttribute("stroke-width", "1");
+            }
+            console.log("[Cleaner] Applied root stroke to pattern path");
+          }
 
           const elStyle = el.getAttribute("style");
           if (elStyle) {
