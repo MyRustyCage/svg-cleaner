@@ -410,62 +410,31 @@
       // Convert SVG to PNG
       async function convertSVGtoPNG(svgString) {
         console.log("[Converter] Converting SVG to PNG...");
-        console.log("[Converter] Input SVG:", svgString.substring(0, 300));
 
         return new Promise((resolve, reject) => {
-          // Parse SVG to get dimensions
+          // Parse to get dimensions
           const parser = new DOMParser();
           const doc = parser.parseFromString(svgString, "image/svg+xml");
           const svg = doc.documentElement;
 
-          // Check for parse errors
-          const parseError = doc.querySelector("parsererror");
-          if (parseError) {
-            console.error("[Converter] Parse error:", parseError.textContent);
-            reject(new Error("SVG parse error: " + parseError.textContent));
-            return;
-          }
-
-          // Get dimensions first
           const width = parseInt(svg.getAttribute("width") || "800");
           const height = parseInt(svg.getAttribute("height") || "600");
 
           console.log("[Converter] Target dimensions:", width, "x", height);
 
-          // Force xmlns namespace on root SVG element
-          svg.setAttributeNS(
-            "http://www.w3.org/2000/xmlns/",
-            "xmlns",
-            "http://www.w3.org/2000/svg"
-          );
-          svg.setAttributeNS(
-            "http://www.w3.org/2000/xmlns/",
-            "xmlns:xlink",
-            "http://www.w3.org/1999/xlink"
-          );
+          // Manual xmlns fix - most reliable method
+          let fixedSVG = svgString;
 
-          console.log("[Converter] Added xmlns namespace");
-
-          // Re-serialize with namespace
-          const serializer = new XMLSerializer();
-          const fixedSVG = serializer.serializeToString(svg);
-          console.log("[Converter] Fixed SVG:", fixedSVG.substring(0, 300));
-
-          // Verify xmlns is present
+          // If xmlns is missing from the opening tag, add it
           if (!fixedSVG.includes('xmlns="http://www.w3.org/2000/svg"')) {
-            console.warn(
-              "[Converter] xmlns still missing, manually prepending"
-            );
-            // Manual fix as last resort
-            const fixedManually = fixedSVG.replace(
+            fixedSVG = fixedSVG.replace(
               "<svg",
               '<svg xmlns="http://www.w3.org/2000/svg"'
             );
-            console.log(
-              "[Converter] Manually fixed:",
-              fixedManually.substring(0, 300)
-            );
+            console.log("[Converter] Added xmlns manually");
           }
+
+          console.log("[Converter] Final SVG:", fixedSVG.substring(0, 300));
 
           const canvas = document.createElement("canvas");
           canvas.width = width;
@@ -478,33 +447,14 @@
 
           const img = new Image();
 
-          // Create proper data URL
-          const svgToEncode = fixedSVG.includes(
-            'xmlns="http://www.w3.org/2000/svg"'
-          )
-            ? fixedSVG
-            : fixedSVG.replace(
-                "<svg",
-                '<svg xmlns="http://www.w3.org/2000/svg"'
-              );
-
-          const svgBase64 = btoa(unescape(encodeURIComponent(svgToEncode)));
+          // Create data URL
+          const svgBase64 = btoa(unescape(encodeURIComponent(fixedSVG)));
           const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
 
-          console.log("[Converter] Data URL length:", dataUrl.length);
-          console.log(
-            "[Converter] First 200 chars:",
-            dataUrl.substring(0, 200)
-          );
+          console.log("[Converter] Data URL created");
 
           img.onload = () => {
-            console.log("[Converter] Image loaded successfully");
-            console.log(
-              "[Converter] Image dimensions:",
-              img.width,
-              "x",
-              img.height
-            );
+            console.log("[Converter] ✅ Image loaded successfully!");
 
             try {
               ctx.drawImage(img, 0, 0, width, height);
@@ -522,10 +472,6 @@
                 );
                 const arrayBuffer = await pngBlob.arrayBuffer();
                 const uint8Array = new Uint8Array(arrayBuffer);
-                console.log(
-                  "[Converter] Converted to Uint8Array:",
-                  uint8Array.length
-                );
 
                 resolve({
                   imageData: Array.from(uint8Array),
@@ -540,23 +486,20 @@
           };
 
           img.onerror = (err) => {
-            console.error("[Converter] Image load failed");
-            console.error("[Converter] Error event:", err);
+            console.error("[Converter] ❌ Image load failed");
 
-            // Decode and log the actual SVG being loaded
+            // Decode and show what failed
             try {
               const decoded = decodeURIComponent(
                 escape(atob(dataUrl.split(",")[1]))
               );
-              console.error("[Converter] Decoded SVG:", decoded);
+              console.error("[Converter] Failed SVG:", decoded);
             } catch (e) {
-              console.error("[Converter] Could not decode SVG");
+              console.error("[Converter] Could not decode");
             }
 
             reject(
-              new Error(
-                "Failed to load SVG image - check console for decoded SVG"
-              )
+              new Error("Failed to load SVG - check decoded SVG in console")
             );
           };
 
