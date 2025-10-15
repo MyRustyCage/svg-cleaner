@@ -206,6 +206,22 @@
         const svg = doc.documentElement;
         console.log("[Cleaner] SVG parsed successfully");
 
+        // Parse Tailwind color names
+        function parseTailwindColor(colorName) {
+          const colors = {
+            red: "#ef4444",
+            blue: "#3b82f6",
+            green: "#22c55e",
+            white: "#ffffff",
+            black: "#000000",
+            gray: "#6b7280",
+            yellow: "#eab308",
+            purple: "#a855f7",
+            pink: "#ec4899",
+          };
+          return colors[colorName] || colorName;
+        }
+
         // Extract mask-image from class attribute (Tailwind arbitrary values)
         function extractMaskFromClass(classStr) {
           if (!classStr) return null;
@@ -213,9 +229,9 @@
           return match ? match[1] : null;
         }
 
-        // Convert CSS mask to SVG mask element
+        // Convert CSS radial mask to SVG mask element
         function convertMaskToSVG(maskCSS, svgElement) {
-          console.log("[Cleaner] Converting mask:", maskCSS);
+          console.log("[Cleaner] Converting radial mask:", maskCSS);
 
           // Parse radial-gradient
           const radialMatch = maskCSS.match(/radial-gradient\(([^)]+)\)/);
@@ -325,7 +341,132 @@
           defs.appendChild(gradient);
           defs.appendChild(mask);
 
-          console.log("[Cleaner] Created mask:", maskId);
+          console.log("[Cleaner] Created radial mask:", maskId);
+          return maskId;
+        }
+
+        // Convert CSS linear gradient mask to SVG mask element
+        function convertLinearMaskToSVG(maskCSS, svgElement) {
+          console.log("[Cleaner] Converting linear mask:", maskCSS);
+
+          // Parse linear-gradient
+          const linearMatch = maskCSS.match(/linear-gradient\(([^)]+)\)/);
+          if (!linearMatch) {
+            console.warn("[Cleaner] Not a linear gradient");
+            return null;
+          }
+
+          const params = linearMatch[1];
+          const parts = params.split(",").map((p) => p.trim());
+
+          // Default direction (top to bottom)
+          let x1 = "0%",
+            y1 = "0%",
+            x2 = "0%",
+            y2 = "100%";
+          let stops = [];
+
+          let startIndex = 0;
+
+          // Check if first part is direction
+          if (parts[0].includes("to ")) {
+            const direction = parts[0];
+            if (direction.includes("bottom")) {
+              x1 = "0%";
+              y1 = "0%";
+              x2 = "0%";
+              y2 = "100%";
+            } else if (direction.includes("top")) {
+              x1 = "0%";
+              y1 = "100%";
+              x2 = "0%";
+              y2 = "0%";
+            } else if (direction.includes("right")) {
+              x1 = "0%";
+              y1 = "0%";
+              x2 = "100%";
+              y2 = "0%";
+            } else if (direction.includes("left")) {
+              x1 = "100%";
+              y1 = "0%";
+              x2 = "0%";
+              y2 = "0%";
+            }
+            startIndex = 1;
+          }
+
+          // Parse color stops
+          for (let i = startIndex; i < parts.length; i++) {
+            const color = parts[i];
+            const offset = i === startIndex ? "0%" : "100%";
+
+            if (color.includes("transparent")) {
+              stops.push({ offset, color: "white", opacity: "0" });
+            } else if (color.includes("black")) {
+              stops.push({ offset, color: "white", opacity: "1" });
+            } else if (color.includes("white")) {
+              stops.push({ offset, color: "white", opacity: "1" });
+            }
+          }
+
+          console.log("[Cleaner] Linear gradient:", { x1, y1, x2, y2, stops });
+
+          // Create or get defs
+          let defs = svgElement.querySelector("defs");
+          if (!defs) {
+            defs = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "defs"
+            );
+            svgElement.insertBefore(defs, svgElement.firstChild);
+          }
+
+          // Create gradient
+          const gradientId =
+            "maskGradient-" + Math.random().toString(36).substr(2, 9);
+          const gradient = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "linearGradient"
+          );
+          gradient.setAttribute("id", gradientId);
+          gradient.setAttribute("x1", x1);
+          gradient.setAttribute("y1", y1);
+          gradient.setAttribute("x2", x2);
+          gradient.setAttribute("y2", y2);
+
+          stops.forEach((stop) => {
+            const stopEl = document.createElementNS(
+              "http://www.w3.org/2000/svg",
+              "stop"
+            );
+            stopEl.setAttribute("offset", stop.offset);
+            stopEl.setAttribute("stop-color", stop.color);
+            stopEl.setAttribute("stop-opacity", stop.opacity);
+            gradient.appendChild(stopEl);
+          });
+
+          // Create mask
+          const maskId =
+            "maskElement-" + Math.random().toString(36).substr(2, 9);
+          const mask = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "mask"
+          );
+          mask.setAttribute("id", maskId);
+
+          const maskRect = document.createElementNS(
+            "http://www.w3.org/2000/svg",
+            "rect"
+          );
+          maskRect.setAttribute("width", "100%");
+          maskRect.setAttribute("height", "100%");
+          maskRect.setAttribute("fill", `url(#${gradientId})`);
+          mask.appendChild(maskRect);
+
+          defs.appendChild(gradient);
+          defs.appendChild(mask);
+
+          console.log("[Cleaner] Created linear mask:", maskId);
           return maskId;
         }
 
@@ -336,13 +477,21 @@
         // Store root-level stroke properties for patterns
         let rootStroke = null;
         let rootStrokeOpacity = null;
+        let rootStrokeWidth = null;
 
         // Handle mask-image from class
         if (classAttr) {
           const maskCSS = extractMaskFromClass(classAttr);
           if (maskCSS) {
             console.log("[Cleaner] Found mask in class:", maskCSS);
-            const maskId = convertMaskToSVG(maskCSS, svg);
+            let maskId = null;
+
+            if (maskCSS.includes("radial-gradient")) {
+              maskId = convertMaskToSVG(maskCSS, svg);
+            } else if (maskCSS.includes("linear-gradient")) {
+              maskId = convertLinearMaskToSVG(maskCSS, svg);
+            }
+
             if (maskId) {
               // Apply mask ONLY to elements that use the pattern (not background rects)
               Array.from(svg.children).forEach((child) => {
@@ -361,16 +510,24 @@
             }
           }
 
-          // Parse stroke from Tailwind class (stroke-white/5 = white with 5% opacity)
-          const strokeMatch = classAttr.match(/stroke-([a-z]+)\/(\d+)/);
+          // Parse stroke from Tailwind class (stroke-red-500/50 = red with 50% opacity)
+          const strokeMatch = classAttr.match(
+            /stroke-([a-z]+)(?:-\d+)?\/(\d+)/
+          );
           if (strokeMatch) {
             const color = strokeMatch[1];
             const opacity = parseInt(strokeMatch[2]) / 100;
-            rootStroke = color === "white" ? "#ffffff" : color;
+            rootStroke = parseTailwindColor(color);
             rootStrokeOpacity = opacity.toString();
             svg.setAttribute("stroke", rootStroke);
             svg.setAttribute("stroke-opacity", rootStrokeOpacity);
-            console.log("[Cleaner] Extracted stroke:", color, opacity);
+            console.log(
+              "[Cleaner] Extracted stroke:",
+              color,
+              opacity,
+              "→",
+              rootStroke
+            );
           }
         }
 
@@ -378,17 +535,34 @@
         if (styleAttr && styleAttr.includes("mask-image")) {
           const maskMatch = styleAttr.match(/mask-image:\s*([^;]+)/);
           if (maskMatch) {
-            const maskId = convertMaskToSVG(maskMatch[1], svg);
+            const maskCSS = maskMatch[1];
+            let maskId = null;
+
+            // Try radial gradient first
+            if (maskCSS.includes("radial-gradient")) {
+              maskId = convertMaskToSVG(maskCSS, svg);
+            } else if (maskCSS.includes("linear-gradient")) {
+              maskId = convertLinearMaskToSVG(maskCSS, svg);
+            }
+
             if (maskId) {
               Array.from(svg.children).forEach((child) => {
                 if (child.tagName !== "defs") {
-                  const fillAttr = child.getAttribute("fill");
-                  if (fillAttr && fillAttr.includes("url(#")) {
-                    child.setAttribute("mask", `url(#${maskId})`);
-                  }
+                  child.setAttribute("mask", `url(#${maskId})`);
+                  console.log("[Cleaner] Applied mask to:", child.tagName);
                 }
               });
             }
+          }
+        }
+
+        // Extract stroke-width from style
+        if (styleAttr && styleAttr.includes("stroke-width")) {
+          const widthMatch = styleAttr.match(/stroke-width:\s*([^;]+)/);
+          if (widthMatch) {
+            rootStrokeWidth = widthMatch[1].trim();
+            svg.setAttribute("stroke-width", rootStrokeWidth);
+            console.log("[Cleaner] Extracted stroke-width:", rootStrokeWidth);
           }
         }
 
@@ -422,6 +596,25 @@
               el.setAttribute("stroke-width", "1");
             }
             console.log("[Cleaner] Applied root stroke to pattern path");
+          }
+
+          // Apply root stroke to circles/shapes with fill="none" (like stroke test)
+          if (
+            (el.tagName === "circle" ||
+              el.tagName === "ellipse" ||
+              el.tagName === "rect" ||
+              el.tagName === "polygon") &&
+            el.getAttribute("fill") === "none" &&
+            rootStroke
+          ) {
+            el.setAttribute("stroke", rootStroke);
+            if (rootStrokeOpacity) {
+              el.setAttribute("stroke-opacity", rootStrokeOpacity);
+            }
+            if (rootStrokeWidth) {
+              el.setAttribute("stroke-width", rootStrokeWidth);
+            }
+            console.log("[Cleaner] Applied root stroke to shape:", el.tagName);
           }
 
           const elStyle = el.getAttribute("style");
