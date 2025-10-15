@@ -1,7 +1,7 @@
 // plugin.js - SVG Cleaner Test Plugin (Fixed)
 console.log("[SVG Test] Loading...");
 
-penpot.ui.open("SVG Cleaner Test", "./svg-cleaner-test/ui.html", {
+penpot.ui.open("SVG Cleaner Test", "./svg-cleaner/ui.html", {
   width: 500,
   height: 700,
 });
