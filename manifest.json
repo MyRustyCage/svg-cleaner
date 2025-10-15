@@ -1,0 +1,12 @@
+{
+  "name": "SVG Cleaner Test",
+  "version": "0.0.1",
+  "id": "svg-cleaner-test",
+  "host": "https://myrustycage.github.io/svg-cleaner-test",
+  "code": "./plugin.js",
+  "ui": "./ui.html",
+  "entry": "main",
+  "permissions": ["content:read", "content:write"],
+  "description": "Test SVG CSS-to-native conversion for Penpot import",
+  "author": "Plugin Tester"
+}
